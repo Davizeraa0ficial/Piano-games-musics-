@@ -3,37 +3,438 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Piano Battle - Modo Passa o Celular</title>
+    <title>Ultimate Music Piano Arcade</title>
+    <!-- Biblioteca WebRTC para conectar celulares direto sem precisar de computador -->
+    <script src="https://unpkg.com"></script>
     <style>
         * { box-sizing: border-box; touch-action: manipulation; }
-        body { font-family: 'Segoe UI', sans-serif; background-color: #0d0e15; color: #fff; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+        body { font-family: 'Segoe UI', sans-serif; background-color: #0b0b0f; color: #fff; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
         
-        h1 { font-size: 22px; color: #ffeb3b; margin: 5px 0; text-align: center; text-shadow: 0 0 8px rgba(255,235,59,0.3); }
+        h1 { font-size: 18px; color: #ffeb3b; margin: 5px 0; text-align: center; text-shadow: 0 0 8px rgba(255,235,59,0.3); }
         
         .container { width: 100%; max-width: 500px; display: flex; flex-direction: column; gap: 10px; }
         
-        .panel { background-color: #1a1b26; padding: 15px; border-radius: 14px; border: 1px solid #2f324a; text-align: center; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .panel { background-color: #16161f; padding: 15px; border-radius: 12px; border: 1px solid #2a2a3a; text-align: center; }
         
-        /* Indicador de Turno */
-        .turn-indicator { font-size: 18px; font-weight: bold; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-transform: uppercase; transition: 0.3s; }
+        /* Modos de Jogo Três Abas */
+        .mode-selector { display: flex; gap: 6px; margin-bottom: 5px; width: 100%; }
+        .btn-mode { flex: 1; padding: 8px 4px; background: #222; color: #aaa; border: 1px solid #333; border-radius: 8px; font-weight: bold; font-size: 11px; cursor: pointer; }
+        .btn-mode.active { background: #e91e63; color: white; border-color: #e91e63; box-shadow: 0 0 8px rgba(233,30,99,0.4); }
+
+        .turn-indicator { font-size: 15px; font-weight: bold; padding: 8px; border-radius: 6px; margin-bottom: 10px; text-transform: uppercase; }
         .p1-turn { background-color: #0288d1; color: white; }
         .p2-turn { background-color: #e91e63; color: white; }
-        .waiting-turn { background-color: #ff9800; color: black; animation: blink 1s infinite; }
+        .waiting-turn { background-color: #ff9800; color: black; }
+        .solo-turn { background-color: #4caf50; color: white; }
 
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
-
-        .score-box { display: flex; justify-content: space-around; background: #11121a; padding: 10px; border-radius: 8px; margin: 10px 0; font-size: 14px; border: 1px solid #222; }
-        .p1-txt { color: #00b0ff; font-weight: bold; }
-        .p2-txt { color: #ff4081; font-weight: bold; }
+        .score-view { font-size: 15px; font-weight: bold; color: #00ffcc; display: flex; justify-content: space-around; margin: 5px 0; }
+        
+        .btn { background: #e91e63; color: white; border: none; padding: 12px 20px; font-size: 14px; font-weight: bold; border-radius: 25px; cursor: pointer; width: 100%; margin-top: 5px; }
+        .btn-share { background: #25d366; display: none; } 
+        .btn-mic { background: #00bcd4; }
+        .btn-mic.active { background: #f44336; }
+        .btn-action { background: #4caf50; display: none; margin-bottom: 10px; }
 
         .track-select { width: 100%; padding: 10px; background: #222; color: #fff; border: 1px solid #444; border-radius: 8px; font-size: 14px; margin-bottom: 10px; }
+        .chat-area { background: #000; border-radius: 8px; height: 80px; overflow-y: auto; padding: 8px; text-align: left; font-size: 12px; margin-bottom: 5px; display: none; }
+        .chat-input { width: 100%; padding: 10px; border-radius: 6px; border: none; background: #222; color: #fff; font-size: 14px; display: none; }
 
-        /* Alvo Visual */
-        .target-area { background: #090a0f; padding: 12px; border-radius: 10px; border: 1px solid #ffeb3b; margin: 10px 0; }
-        .target-display { font-size: 32px; color: #ffeb3b; font-weight: bold; margin-top: 5px; }
-        
-        /* Piano Responsivo */
+        /* Piano */
         .piano-wrapper { width: 100%; overflow-x: auto; padding: 10px 0; background: #000; border-radius: 14px; }
+        .piano { display: flex; position: relative; width: max-content; margin: 0 auto; }
+        .key { height: 140px; cursor: pointer; position: relative; }
+        .white { width: 42px; background: #fff; border: 1px solid #aaa; border-radius: 0 0 5px 5px; z-index: 1; }
+        .white:active, .white.hit { background: #b2dfdb; }
+        .black { width: 26px; height: 85px; background: #111; margin-left: -13px; margin-right: -13px; z-index: 2; border-radius: 0 0 3px 3px; }
+        .black:active, .black.hit { background: #00796b; }
+        
+        .label { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: bold; color: #333; pointer-events: none; }
+        .black .label { color: #fff; top: 60px; }
+
+        .target-display { font-size: 28px; color: #ffeb3b; font-weight: bold; background: #222; padding: 8px; border-radius: 8px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+
+    <h1>🎹 Ultimate Music Piano Arcade</h1>
+    
+    <div class="container">
+        <!-- Alternador de Três Modos -->
+        <div class="mode-selector">
+            <button id="mode-solo" class="btn-mode active" onclick="switchMode('solo')">👤 Treino Solo</button>
+            <button id="mode-online" class="btn-mode" onclick="switchMode('online')">⚔️ Online (WhatsApp)</button>
+            <button id="mode-local" class="btn-mode" onclick="switchMode('local')">🏠 Mesma Casa</button>
+        </div>
+
+        <div class="panel">
+            <!-- Seleção Super Expandida de Músicas -->
+            <select id="track-picker" class="track-select" onchange="changeTrack()">
+                <optgroup label="🎮 Temas de Jogos Clássicos">
+                    <option value="among">🛸 Among Us Theme</option>
+                    <option value="minecraft">⛏️ Minecraft Main</option>
+                    <option value="scooby">🐕 Scooby-Doo Game/Intro</option>
+                    <option value="beethoven">🎼 Beethoven (Nona Sinfonia)</option>
+                </optgroup>
+                <optgroup label="🦔 Bandas de Trilha de Jogos">
+                    <option value="greenhill">🦔 Sonic 1 - Green Hill</option>
+                    <option value="chemical">🧪 Sonic 2 - Chemical Plant</option>
+                    <option value="livelearn">🎸 Crush 40 - Live & Learn (Sonic)</option>
+                    <option value="sonicboom">💥 Cash Cash - Sonic Boom</option>
+                    <option value="megalovania">💀 Toby Fox - Megalovania (Undertale)</option>
+                    <option value="witcher">⚔️ Marcin Przybyłowicz - The Witcher 3</option>
+                </optgroup>
+                <optgroup label="👑 Rei do Pop - Michael Jackson">
+                    <option value="billiejean">🕺 Michael Jackson - Billie Jean</option>
+                    <option value="smooth">🕴️ Michael Jackson - Smooth Criminal</option>
+                    <option value="thriller">🧟 Michael Jackson - Thriller</option>
+                </optgroup>
+                <optgroup label="🎸 Lendas do Rock Mundial">
+                    <option value="wewillrock">🥁 Queen - We Will Rock You</option>
+                    <option value="bohemian">🎹 Queen - Bohemian Rhapsody</option>
+                    <option value="backinblack">⚡ AC/DC - Back In Black</option>
+                </optgroup>
+                <optgroup label="🎤 Astros Pop - Justin Bieber & Mais">
+                    <option value="baby">👶 Justin Bieber - Baby</option>
+                    <option value="sorry">🙏 Justin Bieber - Sorry</option>
+                </optgroup>
+                <optgroup label="🎬 Atores & Trilhas de Filmes">
+                    <option value="peaches">🐢 Jack Black - Peaches (Bowser)</option>
+                    <option value="shallow">🌟 Bradley Cooper & Lady Gaga - Shallow</option>
+                    <option value="pirates">🏴‍☠️ Hans Zimmer - Piratas do Caribe</option>
+                </optgroup>
+            </select>
+
+            <div id="turn-banner" class="turn-indicator solo-turn">Modo Treino Livre</div>
+            <div id="connection-status" style="font-size: 13px; color: #aaa; display:none;">Iniciando modo online...</div>
+            
+            <button id="invite-btn" class="btn btn-share" onclick="shareMatchLink()">🟩 Enviar Link de Luta no WhatsApp</button>
+            <button id="action-btn" class="btn btn-action" onclick="handleNextStep()">Começar Vez do Jogador 2 ➜</button>
+            
+            <div class="score-view">
+                <div id="p1-score-box">Sua Pontuação: <span id="my-score">0</span> <span id="p1-time-lbl"></span></div>
+                <div id="p2-score-box" style="display:none;">Rival/P2: <span id="opp-score">0</span> <span id="p2-time-lbl"></span></div>
+            </div>
+
+            <div style="color: #bbb; font-size: 13px;">Aperte a nota:</div>
+            <div class="target-display" id="target-note">Dó</div>
+            
+            <button class="btn btn-mic" id="mic-btn" onclick="toggleMobileMic()">🎙️ Ouvir meu Piano Real</button>
+        </div>
+
+        <div class="piano-wrapper">
+            <div class="piano">
+                <div class="key white" id="C" onclick="handleKeyTrigger('C')"><span class="label">Dó</span></div>
+                <div class="key black" id="Cs" onclick="handleKeyTrigger('Cs')"><span class="label">Dó#</span></div>
+                <div class="key white" id="D" onclick="handleKeyTrigger('D')"><span class="label">Ré</span></div>
+                <div class="key black" id="Ds" onclick="handleKeyTrigger('Ds')"><span class="label">Ré#</span></div>
+                <div class="key white" id="E" onclick="handleKeyTrigger('E')"><span class="label">Mi</span></div>
+                <div class="key white" id="F" onclick="handleKeyTrigger('F')"><span class="label">Fá</span></div>
+                <div class="key black" id="Fs" onclick="handleKeyTrigger('Fs')"><span class="label">Fá#</span></div>
+                <div class="key white" id="G" onclick="handleKeyTrigger('G')"><span class="label">Sol</span></div>
+                <div class="key black" id="Gs" onclick="handleKeyTrigger('Gs')"><span class="label">Sol#</span></div>
+                <div class="key white" id="A" onclick="handleKeyTrigger('A')"><span class="label">Lá</span></div>
+                <div class="key black" id="As" onclick="handleKeyTrigger('As')"><span class="label">Lá#</span></div>
+                <div class="key white" id="B" onclick="handleKeyTrigger('B')"><span class="label">Si</span></div>
+                <div class="key white" id="C2" onclick="handleKeyTrigger('C2')"><span class="label">Dó2</span></div>
+            </div>
+        </div>
+
+        <div class="panel" id="chat-panel" style="padding: 10px; display: none;">
+            <div class="chat-area" id="chat-box" style="display:block;"><div>Chat de batalha ativo.</div></div>
+            <input type="text" class="chat-input" id="chat-in" style="display:block;" placeholder="Mensagem de provocação (Enter)" onkeypress="sendMobileChat(event)">
+        </div>
+    </div>
+
+    <script>
+        const labels = {'C':'Dó','Cs':'Dó#','D':'Ré','Ds':'Ré#','E':'Mi','F':'Fá','Fs':'Fá#','G':'Sol','Gs':'Sol#','A':'Lá','As':'Lá#','B':'Si','C2':'Dó2'};
+        
+        // Banco de dados musical super expandido com notas simplificadas
+        const tracks = {
+            among: ['C', 'Ds', 'F', 'Fs', 'F', 'Ds', 'C', 'As', 'D'],
+            minecraft: ['D', 'F', 'G', 'A', 'F', 'D'],
+            scooby: ['C', 'D', 'E', 'F', 'G', 'G', 'A', 'G'],
+            beethoven: ['E', 'E', 'F', 'G', 'G', 'F', 'E', 'D'],
+            greenhill: ['C2', 'As', 'G', 'A', 'A', 'A', 'G', 'A'],
+            chemical: ['C', 'D', 'F', 'G', 'Fs', 'F', 'D', 'C'],
+            livelearn: ['E', 'G', 'A', 'B', 'A', 'G', 'E', 'D'],
+            sonicboom: ['C', 'E', 'G', 'C2', 'B', 'A', 'G', 'E'],
+            // Novas Músicas (Michael Jackson, Rock, Pop e Atores)
+            megalovania: ['D', 'D', 'C2', 'A', 'Gs', 'G', 'F', 'D'],
+            witcher: ['E', 'F', 'E', 'D', 'E', 'C', 'D', 'E'],
+            billiejean: ['Fs', 'Cs', 'E', 'Fs', 'E', 'Cs', 'B', 'Cs'],
+            smooth: ['A', 'A', 'G', 'A', 'B', 'B', 'A', 'B', 'C2'],
+            thriller: ['Cs', 'E', 'Fs', 'Gs', 'Fs', 'E', 'Cs'],
+            wewillrock: ['E', 'E', 'F', 'F', 'E', 'E', 'D'],
+            bohemian: ['G', 'A', 'A', 'A', 'A', 'G', 'G', 'F'],
+            backinblack: ['E', 'D', 'D', 'D', 'C', 'C', 'C', 'B'],
+            baby: ['C', 'D', 'E', 'E', 'E', 'D', 'C', 'D'],
+            sorry: ['G', 'A', 'B', 'B', 'A', 'G', 'A', 'B'],
+            peaches: ['C2', 'B', 'A', 'G', 'F', 'G', 'A', 'C'],
+            shallow: ['G', 'A', 'B', 'B', 'A', 'G', 'F', 'G'],
+            pirates: ['D', 'F', 'G', 'G', 'G', 'A', 'As', 'As']
+        };
+
+        let activeMode = 'solo'; 
+        let currentTrack = 'among';
+        let currentIdx = 0;
+        let myScore = 0, oppScore = 0;
+        let peer, conn;
+        
+        let localState = 'P1'; 
+        let startTime = 0;
+        let p1Time = 0, p2Time = 0;
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomID = urlParams.get('room');
+
+        function switchMode(mode) {
+            activeMode = mode;
+            document.getElementById('mode-solo').classList.toggle('active', mode === 'solo');
+            document.getElementById('mode-online').classList.toggle('active', mode === 'online');
+            document.getElementById('mode-local').classList.toggle('active', mode === 'local');
+            
+            const banner = document.getElementById('turn-banner');
+            
+            if (mode === 'solo') {
+                banner.style.display = 'block';
+                banner.textContent = "👤 Modo Treino Livre";
+                banner.className = "turn-indicator solo-turn";
+                document.getElementById('chat-panel').style.display = 'none';
+                document.getElementById('invite-btn').style.display = 'none';
+                document.getElementById('action-btn').style.display = 'none';
+                document.getElementById('connection-status').style.display = 'none';
+                document.getElementById('p1-score-box').innerHTML = 'Sua Pontuação: <span id="my-score">0</span>';
+                document.getElementById('p2-score-box').style.display = 'none';
+                resetSoloMatch();
+            } else if (mode === 'local') {
+                banner.style.display = 'block';
+                document.getElementById('chat-panel').style.display = 'none';
+                document.getElementById('invite-btn').style.display = 'none';
+                document.getElementById('connection-status').style.display = 'none';
+                document.getElementById('p1-score-box').innerHTML = 'Jogador 1: <span id="my-score">0</span> <span id="p1-time-lbl"></span>';
+                document.getElementById('p2-score-box').style.display = 'block';
+                resetLocalMatch();
+            } else {
+                banner.style.display = 'none';
+                document.getElementById('chat-panel').style.display = 'block';
+                document.getElementById('connection-status').style.display = 'block';
+                document.getElementById('p1-score-box').innerHTML = 'Você: <span id="my-score">0</span>';
+                document.getElementById('p2-score-box').style.display = 'block';
+                document.getElementById('action-btn').style.display = 'none';
+                initOnlineSystem();
+            }
+        }
+
+        function resetSoloMatch() {
+            currentIdx = 0; myScore = 0;
+            document.getElementById('my-score').textContent = "0";
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+        }
+
+        function initOnlineSystem() {
+            if (peer) return;
+            if (roomID) {
+                peer = new Peer();
+                peer.on('open', () => {
+                    document.getElementById('connection-status').textContent = "Conectando ao rival online...";
+                    conn = peer.connect(roomID);
+                    setupConnection();
+                });
+            } else {
+                const generatedRoom = 'piano-' + Math.floor(Math.random() * 90000 + 10000);
+                peer = new Peer(generatedRoom);
+                peer.on('open', () => {
+                    document.getElementById('connection-status').textContent = "Aguardando rival entrar...";
+                    document.getElementById('invite-btn').style.display = 'block';
+                });
+                peer.on('connection', (c) => { conn = c; setupConnection(); });
+            }
+        }
+
+        function shareMatchLink() {
+            const matchLink = window.location.origin + window.location.pathname + '?room=' + peer.id;
+            const text = encodeURIComponent("Entre na minha arena de piano agora! Link: " + matchLink);
+            window.open("https://whatsapp.com" + text, '_blank');
+        }
+
+        function setupConnection() {
+            document.getElementById('connection-status').innerHTML = "⚔️ <span style='color:#00ffcc;font-weight:bold;'>BATALHA ONLINE INICIADA!</span>";
+            document.getElementById('invite-btn').style.display = 'none';
+            resetGame();
+            conn.on('data', (data) => {
+                if (data.type === 'chat') appendChat("Rival", data.text);
+                else if (data.type === 'hit') { oppScore = data.score; document.getElementById('opp-score').textContent = oppScore; }
+                else if (data.type === 'track') { currentTrack = data.track; document.getElementById('track-picker').value = data.track; resetGame(); }
+            });
+        }
+
+        function sendMobileChat(e) {
+            if (e.key === 'Enter' && e.target.value.trim() !== "") {
+                appendChat("Você", e.target.value);
+                if (conn) conn.send({ type: 'chat', text: e.target.value });
+                e.target.value = "";
+            }
+        }
+        function appendChat(author, text) {
+            const b = document.getElementById('chat-box');
+            b.innerHTML += `<div><strong>${author}:</strong> ${text}</div>`; b.scrollTop = b.scrollHeight;
+        }
+
+        function changeTrack() {
+            currentTrack = document.getElementById('track-picker').value;
+            if (activeMode === 'online' && conn) conn.send({ type: 'track', track: currentTrack });
+            if (activeMode === 'solo') resetSoloMatch();
+            else if (activeMode === 'local') resetLocalMatch();
+            else resetGame();
+        }
+
+        function resetGame() {
+            currentIdx = 0; myScore = 0; oppScore = 0;
+            document.getElementById('my-score').textContent = "0";
+            document.getElementById('opp-score').textContent = "0";
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+        }
+
+        function resetLocalMatch() {
+            localState = 'P1'; currentIdx = 0; myScore = 0; oppScore = 0; startTime = 0;
+            document.getElementById('my-score').textContent = "0";
+            document.getElementById('opp-score').textContent = "0";
+            document.getElementById('p1-time-lbl').textContent = "";
+            document.getElementById('p2-time-lbl').textContent = "";
+            const banner = document.getElementById('turn-banner');
+            banner.textContent = "Vez do Jogador 1"; banner.className = "turn-indicator p1-turn";
+            document.getElementById('action-btn').style.display = "none";
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+        }
+
+        function handleNextStep() {
+            if (localState === 'WAITING_P2') {
+                localState = 'P2'; currentIdx = 0; startTime = 0;
+                const banner = document.getElementById('turn-banner');
+                banner.textContent = "Vez do Jogador 2"; banner.className = "turn-indicator p2-turn";
+                document.getElementById('action-btn').style.display = "none";
+                document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+            } else if (localState === 'FINISHED') {
+                resetLocalMatch();
+            }
+        }
+
+        const freqs = {'C':261,'Cs':277,'D':293,'Ds':311,'E':329,'F':349,'Fs':369,'G':392,'Gs':415,'A':440,'As':466,'B':493,'C2':523};
+        
+        function handleKeyTrigger(note, silent = false) {
+            if (activeMode === 'local' && (localState === 'WAITING_P2' || localState === 'FINISHED')) return;
+
+            const el = document.getElementById(note);
+            if (el) { el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 150); }
+
+            if (!silent) {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                osc.frequency.setValueAtTime(freqs[note], ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
+                osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.4);
+            }
+
+            let sequence = tracks[currentTrack];
+
+            // 1. Solo
+            if (activeMode === 'solo') {
+                if (note === sequence[currentIdx]) {
+                    myScore += 10;
+                    document.getElementById('my-score').textContent = myScore;
+                    currentIdx++;
+                    if (currentIdx >= sequence.length) {
+                        alert("✨ Incrível! Você completou essa música!");
+                        resetSoloMatch();
+                    } else {
+                        document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
+                    }
+                }
+            }
+            // 2. Online
+            else if (activeMode === 'online') {
+                if (note === sequence[currentIdx]) {
+                    myScore += 10; document.getElementById('my-score').textContent = myScore;
+                    if (conn) conn.send({ type: 'hit', score: myScore });
+                    currentIdx++;
+                    if (currentIdx >= sequence.length) { alert("🏆 Você foi mais rápido e ganhou a rodada!"); resetGame(); }
+                    else document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
+                }
+            } 
+            // 3. Local
+            else {
+                if (startTime === 0) startTime = performance.now();
+                if (note === sequence[currentIdx]) {
+                    currentIdx++;
+                    if (localState === 'P1') { myScore += 10; document.getElementById('my-score').textContent = myScore + " pts"; }
+                    else { oppScore += 10; document.getElementById('opp-score').textContent = oppScore + " pts"; }
+
+                    if (currentIdx >= sequence.length) {
+                        let duration = ((performance.now() - startTime) / 1000).toFixed(2);
+                        if (localState === 'P1') {
+                            p1Time = parseFloat(duration); document.getElementById('p1-time-lbl').textContent = `(${duration}s)`;
+                            localState = 'WAITING_P2';
+                            const banner = document.getElementById('turn-banner');
+                            banner.textContent = "⏱️ Passa o Celular!"; banner.className = "turn-indicator waiting-turn";
+                            const actBtn = document.getElementById('action-btn');
+                            actBtn.textContent = "Começar Vez do Jogador 2 ➜"; actBtn.style.display = "block";
+                        } else {
+                            p2Time = parseFloat(duration); document.getElementById('p2-time-lbl').textContent = `(${duration}s)`;
+                            localState = 'FINISHED';
+                            const banner = document.getElementById('turn-banner');
+                            banner.className = "turn-indicator waiting-turn";
+                            let winTxt = p1Time < p2Time ? "👑 JOGADOR 1 VENCEU!" : "👑 JOGADOR 2 VENCEU!";
+                            if(p1Time === p2Time) winTxt = "🤝 EMPATE!";
+                            banner.textContent = winTxt;
+                            const actBtn = document.getElementById('action-btn');
+                            actBtn.textContent = "🔄 Nova Partida"; actBtn.style.display = "block";
+                        }
+                    } else {
+                        document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
+                    }
+                }
+            }
+        }
+
+        // MICROFONE PIANO FISICO
+        let micStream, audioContext, analyser, isListening = false;
+        function toggleMobileMic() {
+            const btn = document.getElementById('mic-btn');
+            if (isListening) { isListening = false; btn.textContent = "🎙️ Ouvir meu Piano Real"; btn.classList.remove('active'); if (micStream) micStream.getTracks().forEach(t => t.stop()); return; }
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                isListening = true; micStream = stream; btn.textContent = "🛑 Desativar Captura"; btn.classList.add('active');
+                audioContext = new AudioContext(); analyser = audioContext.createAnalyser(); analyser.fftSize = 1024;
+                audioContext.createMediaStreamSource(stream).connect(analyser); listenLoop();
+            }).catch(() => alert("Ative o microfone nas configurações."));
+        }
+        function listenLoop() {
+            if (!isListening) return;
+            let buf = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(buf);
+            let sum = 0; for(let i=0; i<buf.length; i++) sum += buf[i]*buf[i];
+            if (Math.sqrt(sum/buf.length) > 0.04) {
+                let bestFreq = frequencyAnalytic(buf, audioContext.sampleRate);
+                if (bestFreq > 0) { let matched = matchFreq(bestFreq); if (matched) handleKeyTrigger(matched, true); }
+            }
+            setTimeout(() => requestAnimationFrame(listenLoop), 60);
+        }
+        function frequencyAnalytic(buf, sampleRate) {
+            let maxCorr = -1, bestPeriod = -1;
+            for (let period = 20; period < 200; period++) {
+                let corr = 0; for (let i = 0; i < buf.length - period; i++) corr += buf[i] * buf[i + period];
+                if (corr > maxCorr) { maxCorr = corr; bestPeriod = period; }
+            }
+            return bestPeriod > 0 ? sampleRate / bestPeriod : -1;
+        }
+        function matchFreq(f) {
+            let matchedKey = null, diff = Infinity;
+            for (let k in freqs) { [freqs[k], freqs[k]*2, freqs[k]/2].forEach(target => { let d = Math.abs(target - f); if (d < diff && d < 15) { diff = d; matchedKey = k; } }); }
+            return matchedKey;
+        }
+
+        if(roomID) { switchMode('online'); } else { switchMode('solo'); }
+    </script>
+</body>
+</html>
         .piano { display: flex; position: relative; width: max-content; margin: 0 auto; }
         .key { height: 145px; cursor: pointer; position: relative; }
         .white { width: 44px; background: #fff; border: 1px solid #aaa; border-radius: 0 0 6px 6px; z-index: 1; }
