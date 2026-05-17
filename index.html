@@ -52,6 +52,10 @@
         .black .label { color: #fff; top: 60px; }
 
         .target-display { font-size: 28px; color: #ffeb3b; font-weight: bold; background: #222; padding: 8px; border-radius: 8px; margin: 5px 0; }
+
+        .mic-status { font-size: 12px; color: #aaa; margin-top: 8px; padding: 8px; background: #1a1a24; border-radius: 6px; }
+        .mic-status.active { color: #00ffcc; background: #0a2a1a; }
+        .frequency-display { font-family: monospace; font-size: 11px; margin: 5px 0; }
     </style>
 </head>
 <body>
@@ -119,6 +123,12 @@
             <div class="target-display" id="target-note">Dó</div>
             
             <button class="btn btn-mic" id="mic-btn" onclick="toggleMobileMic()">🎙️ Ouvir meu Piano Real</button>
+            <div id="mic-status" class="mic-status" style="display:none;">
+                <div>🎙️ Capturando áudio...</div>
+                <div class="frequency-display">Frequência: <span id="freq-display">---</span> Hz</div>
+                <div class="frequency-display">Nota detectada: <span id="note-detected">---</span></div>
+                <div style="font-size: 10px; margin-top: 5px; color: #888;">Filtrando vozes e ruídos ambientes...</div>
+            </div>
         </div>
 
         <div class="piano-wrapper">
@@ -158,7 +168,6 @@
             chemical: ['C', 'D', 'F', 'G', 'Fs', 'F', 'D', 'C'],
             livelearn: ['E', 'G', 'A', 'B', 'A', 'G', 'E', 'D'],
             sonicboom: ['C', 'E', 'G', 'C2', 'B', 'A', 'G', 'E'],
-            // Novas Músicas (Michael Jackson, Rock, Pop e Atores)
             megalovania: ['D', 'D', 'C2', 'A', 'Gs', 'G', 'F', 'D'],
             witcher: ['E', 'F', 'E', 'D', 'E', 'C', 'D', 'E'],
             billiejean: ['Fs', 'Cs', 'E', 'Fs', 'E', 'Cs', 'B', 'Cs'],
@@ -396,38 +405,128 @@
             }
         }
 
-        // MICROFONE PIANO FISICO
+        // ===== DETECÇÃO AVANÇADA DE FREQUÊNCIA COM FILTROS =====
         let micStream, audioContext, analyser, isListening = false;
+        let lastValidNoteTime = 0;
+        const NOTE_DEBOUNCE_MS = 300; // Evitar múltiplos triggers da mesma nota
+
         function toggleMobileMic() {
             const btn = document.getElementById('mic-btn');
-            if (isListening) { isListening = false; btn.textContent = "🎙️ Ouvir meu Piano Real"; btn.classList.remove('active'); if (micStream) micStream.getTracks().forEach(t => t.stop()); return; }
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                isListening = true; micStream = stream; btn.textContent = "🛑 Desativar Captura"; btn.classList.add('active');
-                audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); analyser.fftSize = 1024;
-                audioContext.createMediaStreamSource(stream).connect(analyser); listenLoop();
+            const statusDiv = document.getElementById('mic-status');
+            
+            if (isListening) { 
+                isListening = false; 
+                btn.textContent = "🎙️ Ouvir meu Piano Real"; 
+                btn.classList.remove('active'); 
+                statusDiv.style.display = 'none';
+                if (micStream) micStream.getTracks().forEach(t => t.stop()); 
+                return; 
+            }
+            
+            navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: false } }).then(stream => {
+                isListening = true; 
+                micStream = stream; 
+                btn.textContent = "🛑 Desativar Captura"; 
+                btn.classList.add('active');
+                statusDiv.style.display = 'block';
+                
+                audioContext = new (window.AudioContext || window.webkitAudioContext)(); 
+                analyser = audioContext.createAnalyser(); 
+                analyser.fftSize = 4096; // Melhor resolução de frequência
+                analyser.minDecibels = -100;
+                analyser.maxDecibels = -10;
+                analyser.smoothingTimeConstant = 0.85;
+                
+                // Criar filtros para melhorar detecção
+                const sourceNode = audioContext.createMediaStreamSource(stream);
+                const highPassFilter = audioContext.createBiquadFilter();
+                highPassFilter.type = 'highpass';
+                highPassFilter.frequency.value = 200; // Rejeita baixas frequências (vozes)
+                
+                const lowPassFilter = audioContext.createBiquadFilter();
+                lowPassFilter.type = 'lowpass';
+                lowPassFilter.frequency.value = 2000; // Foco nas frequências do piano
+                lowPassFilter.Q.value = 2;
+                
+                sourceNode.connect(highPassFilter);
+                highPassFilter.connect(lowPassFilter);
+                lowPassFilter.connect(analyser);
+                
+                listenLoop();
             }).catch(() => alert("Ative o microfone nas configurações."));
         }
+
         function listenLoop() {
             if (!isListening) return;
-            let buf = new Float32Array(analyser.fftSize); analyser.getFloatTimeDomainData(buf);
-            let sum = 0; for(let i=0; i<buf.length; i++) sum += buf[i]*buf[i];
-            if (Math.sqrt(sum/buf.length) > 0.04) {
+            
+            let buf = new Float32Array(analyser.fftSize); 
+            analyser.getFloatTimeDomainData(buf);
+            
+            // Calcular RMS (Root Mean Square) para detectar som
+            let sum = 0; 
+            for(let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
+            const rms = Math.sqrt(sum / buf.length);
+            
+            // Limiar adaptativo: aceita sons mais altos (piano) e rejeita ruído/vozes fracas
+            if (rms > 0.08) { // Aumentado de 0.04 para ser mais seletivo
                 let bestFreq = frequencyAnalytic(buf, audioContext.sampleRate);
-                if (bestFreq > 0) { let matched = matchFreq(bestFreq); if (matched) handleKeyTrigger(matched, true); }
+                
+                if (bestFreq > 0 && bestFreq > 200 && bestFreq < 2000) { // Piano: 200-2000 Hz
+                    let matched = matchFreq(bestFreq);
+                    
+                    // Mostrar frequência detectada
+                    document.getElementById('freq-display').textContent = bestFreq.toFixed(1);
+                    document.getElementById('note-detected').textContent = matched ? labels[matched] : 'Indefinido';
+                    
+                    // Debounce: evitar detecções muito frequentes
+                    const now = Date.now();
+                    if (matched && (now - lastValidNoteTime) > NOTE_DEBOUNCE_MS) {
+                        handleKeyTrigger(matched, true);
+                        lastValidNoteTime = now;
+                    }
+                }
+            } else {
+                document.getElementById('freq-display').textContent = '---';
+                document.getElementById('note-detected').textContent = '---';
             }
-            setTimeout(() => requestAnimationFrame(listenLoop), 60);
+            
+            setTimeout(() => requestAnimationFrame(listenLoop), 50);
         }
+
         function frequencyAnalytic(buf, sampleRate) {
+            // Usando autocorrelação para melhor precisão
             let maxCorr = -1, bestPeriod = -1;
-            for (let period = 20; period < 200; period++) {
-                let corr = 0; for (let i = 0; i < buf.length - period; i++) corr += buf[i] * buf[i + period];
-                if (corr > maxCorr) { maxCorr = corr; bestPeriod = period; }
+            
+            for (let period = Math.floor(sampleRate / 2000); period < Math.floor(sampleRate / 200); period++) {
+                let corr = 0;
+                for (let i = 0; i < buf.length - period; i++) {
+                    corr += Math.abs(buf[i] * buf[i + period]);
+                }
+                if (corr > maxCorr) { 
+                    maxCorr = corr; 
+                    bestPeriod = period; 
+                }
             }
+            
             return bestPeriod > 0 ? sampleRate / bestPeriod : -1;
         }
+
         function matchFreq(f) {
             let matchedKey = null, diff = Infinity;
-            for (let k in freqs) { [freqs[k], freqs[k]*2, freqs[k]/2].forEach(target => { let d = Math.abs(target - f); if (d < diff && d < 15) { diff = d; matchedKey = k; } }); }
+            
+            // Aumentar tolerância mas manter precisão
+            for (let k in freqs) { 
+                // Verificar frequência fundamental e harmônicos
+                [freqs[k], freqs[k]*2, freqs[k]/2].forEach(target => { 
+                    let d = Math.abs(target - f);
+                    // Tolerância maior para melhor captura
+                    if (d < diff && d < 25) { 
+                        diff = d; 
+                        matchedKey = k; 
+                    } 
+                }); 
+            }
+            
             return matchedKey;
         }
 
