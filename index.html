@@ -52,6 +52,13 @@
         .black .label { color: #fff; top: 60px; }
 
         .target-display { font-size: 28px; color: #ffeb3b; font-weight: bold; background: #222; padding: 8px; border-radius: 8px; margin: 5px 0; }
+        
+        /* Acordes */
+        .chords-section { background: #1a1a24; padding: 12px; border-radius: 8px; margin: 10px 0; border: 2px solid #00ffcc; }
+        .chords-title { font-size: 12px; color: #888; text-transform: uppercase; margin-bottom: 8px; }
+        .chords-display { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
+        .chord-tag { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: bold; box-shadow: 0 4px 15px rgba(102,126,234,0.3); }
+        .chord-tag.active { background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%); box-shadow: 0 4px 15px rgba(245,87,108,0.5); }
 
         /* Timer e Precisão */
         .timer-section { display: flex; justify-content: space-around; margin: 10px 0; font-size: 14px; }
@@ -132,6 +139,12 @@
                 <div id="p2-score-box" style="display:none;">Rival/P2: <span id="opp-score">0</span> <span id="p2-time-lbl"></span></div>
             </div>
 
+            <!-- Acordes Dinâmicos -->
+            <div class="chords-section" id="chords-section" style="display:none;">
+                <div class="chords-title">🎸 Acordes da Sequência</div>
+                <div class="chords-display" id="chords-display"></div>
+            </div>
+
             <!-- Timer e Sistema de Precisão -->
             <div class="timer-section" id="timer-section" style="display:none;">
                 <div class="timer-box">
@@ -190,6 +203,44 @@
     <script>
         const labels = {'C':'Dó','Cs':'Dó#','D':'Ré','Ds':'Ré#','E':'Mi','F':'Fá','Fs':'Fá#','G':'Sol','Gs':'Sol#','A':'Lá','As':'Lá#','B':'Si','C2':'Dó2'};
         
+        // Função para extrair acordes de uma sequência
+        function extractChords(noteSequence) {
+            const chordMap = {
+                'C': ['C', 'E', 'G'],
+                'D': ['D', 'Fs', 'A'],
+                'E': ['E', 'Gs', 'B'],
+                'F': ['F', 'A', 'C'],
+                'G': ['G', 'B', 'D'],
+                'A': ['A', 'Cs', 'E'],
+                'B': ['B', 'Ds', 'Fs'],
+                'Cs': ['Cs', 'F', 'Gs'],
+                'Ds': ['Ds', 'G', 'As'],
+                'Fs': ['Fs', 'As', 'Cs'],
+                'Gs': ['Gs', 'B', 'Ds'],
+                'As': ['As', 'Cs', 'F'],
+                'C2': ['C', 'E', 'G']
+            };
+            
+            const chordsDetected = [];
+            
+            for (let note in chordMap) {
+                const notesNeeded = chordMap[note];
+                let matchCount = 0;
+                
+                for (let noteInSeq of notesNeeded) {
+                    if (noteSequence.includes(noteInSeq)) {
+                        matchCount++;
+                    }
+                }
+                
+                if (matchCount >= 2) {
+                    chordsDetected.push(note);
+                }
+            }
+            
+            return [...new Set(chordsDetected)];
+        }
+        
         // Banco de dados musical com TEMPOS ideais entre notas (em segundos)
         const tracks = {
             among: {notes: ['C', 'Ds', 'F', 'Fs', 'F', 'Ds', 'C', 'As', 'D'], tempo: 0.5},
@@ -229,6 +280,27 @@
 
         const urlParams = new URLSearchParams(window.location.search);
         const roomID = urlParams.get('room');
+
+        function displayChords() {
+            const noteSequence = tracks[currentTrack].notes;
+            const detectedChords = extractChords(noteSequence);
+            const chordsDisplay = document.getElementById('chords-display');
+            const chordsSection = document.getElementById('chords-section');
+            
+            chordsDisplay.innerHTML = '';
+            
+            if (detectedChords.length > 0) {
+                detectedChords.forEach((chord, idx) => {
+                    const tag = document.createElement('div');
+                    tag.className = 'chord-tag' + (idx === 0 ? ' active' : '');
+                    tag.textContent = chord;
+                    chordsDisplay.appendChild(tag);
+                });
+                chordsSection.style.display = 'block';
+            } else {
+                chordsSection.style.display = 'none';
+            }
+        }
 
         function switchMode(mode) {
             activeMode = mode;
@@ -279,6 +351,7 @@
             document.getElementById('my-score').textContent = "0";
             document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
             updateTimerDisplay();
+            displayChords();
         }
 
         function initOnlineSystem() {
@@ -344,6 +417,7 @@
             document.getElementById('opp-score').textContent = "0";
             document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
             updateTimerDisplay();
+            displayChords();
         }
 
         function resetLocalMatch() {
@@ -357,6 +431,7 @@
             document.getElementById('action-btn').style.display = "none";
             document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
             updateTimerDisplay();
+            displayChords();
         }
 
         function handleNextStep() {
@@ -367,6 +442,7 @@
                 document.getElementById('action-btn').style.display = "none";
                 document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
                 updateTimerDisplay();
+                displayChords();
             } else if (localState === 'FINISHED') {
                 resetLocalMatch();
             }
@@ -381,7 +457,7 @@
 
         function updateTimerUI(elapsedTime) {
             const idealTime = tracks[currentTrack].tempo;
-            const tolerance = idealTime * 0.5; // 50% de tolerância
+            const tolerance = idealTime * 0.5;
             
             const currentTimeEl = document.getElementById('current-time');
             const accuracyEl = document.getElementById('accuracy-percent');
@@ -389,7 +465,6 @@
             
             currentTimeEl.textContent = elapsedTime.toFixed(2) + 's';
             
-            // Calcular precisão (100% no tempo ideal, reduz conforme se afasta)
             let accuracy = 0;
             if (elapsedTime <= idealTime + tolerance) {
                 accuracy = Math.max(0, 100 - (Math.abs(elapsedTime - idealTime) / tolerance) * 100);
@@ -397,7 +472,6 @@
             
             accuracyEl.textContent = Math.round(accuracy) + '%';
             
-            // Mudar cor do timer baseado na precisão
             if (accuracy > 80) {
                 currentTimeEl.style.color = '#00ffcc';
                 currentTimeEl.classList.remove('warning', 'critical');
@@ -410,7 +484,6 @@
                 currentTimeEl.classList.add('critical');
             }
             
-            // Atualizar barra de precisão
             const fillPercentage = Math.min(100, (accuracy / 100) * 100);
             fillEl.style.width = fillPercentage + '%';
             
@@ -435,41 +508,34 @@
 
             const sequence = tracks[currentTrack].notes;
 
-            // Verificar se é a nota correta
             if (note === sequence[currentIdx]) {
                 const now = Date.now();
                 
                 if (currentIdx === 0) {
-                    // Primeira nota: inicia o timer
                     startTime = now;
                     lastNoteTime = now;
                 } else {
-                    // Calcular tempo desde a última nota
                     const timeSinceLastNote = (now - lastNoteTime) / 1000;
                     const accuracy = updateTimerUI(timeSinceLastNote);
                     
-                    // Calcular penalidade baseada na precisão
                     let scoreGain = 10;
                     if (accuracy < 50) {
-                        scoreGain = 5; // 50% de penalidade
+                        scoreGain = 5;
                     } else if (accuracy < 80) {
-                        scoreGain = 8; // 20% de penalidade
+                        scoreGain = 8;
                     }
                     
                     lastNoteTime = now;
                     
-                    // 1. Solo
                     if (activeMode === 'solo') {
                         myScore += scoreGain;
                         document.getElementById('my-score').textContent = myScore;
                     }
-                    // 2. Online
                     else if (activeMode === 'online') {
                         myScore += scoreGain;
                         document.getElementById('my-score').textContent = myScore;
                         if (conn) conn.send({ type: 'hit', score: myScore });
                     }
-                    // 3. Local
                     else {
                         if (localState === 'P1') { 
                             myScore += scoreGain; 
@@ -484,7 +550,6 @@
                 
                 currentIdx++;
                 
-                // Verifica se a música acabou
                 if (currentIdx >= sequence.length) {
                     let totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
                     
