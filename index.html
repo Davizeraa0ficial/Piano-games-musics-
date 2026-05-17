@@ -53,6 +53,19 @@
 
         .target-display { font-size: 28px; color: #ffeb3b; font-weight: bold; background: #222; padding: 8px; border-radius: 8px; margin: 5px 0; }
 
+        /* Timer e Precisão */
+        .timer-section { display: flex; justify-content: space-around; margin: 10px 0; font-size: 14px; }
+        .timer-box { background: #1a1a24; padding: 10px; border-radius: 8px; flex: 1; margin: 0 5px; }
+        .timer-label { color: #aaa; font-size: 11px; }
+        .timer-value { font-size: 20px; font-weight: bold; color: #00ffcc; }
+        .timer-value.warning { color: #ff6b6b; }
+        .timer-value.critical { color: #ff1744; animation: pulse 0.5s infinite; }
+
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+        .precision-bar { width: 100%; height: 6px; background: #222; border-radius: 3px; margin: 8px 0; overflow: hidden; }
+        .precision-fill { height: 100%; background: linear-gradient(90deg, #4caf50, #ffeb3b, #ff6b6b); width: 100%; }
+
         .mic-status { font-size: 12px; color: #aaa; margin-top: 8px; padding: 8px; background: #1a1a24; border-radius: 6px; }
         .mic-status.active { color: #00ffcc; background: #0a2a1a; }
         .frequency-display { font-family: monospace; font-size: 11px; margin: 5px 0; }
@@ -119,6 +132,25 @@
                 <div id="p2-score-box" style="display:none;">Rival/P2: <span id="opp-score">0</span> <span id="p2-time-lbl"></span></div>
             </div>
 
+            <!-- Timer e Sistema de Precisão -->
+            <div class="timer-section" id="timer-section" style="display:none;">
+                <div class="timer-box">
+                    <div class="timer-label">⏱️ Tempo Ideal</div>
+                    <div class="timer-value" id="ideal-time">--</div>
+                </div>
+                <div class="timer-box">
+                    <div class="timer-label">⏲️ Seu Tempo</div>
+                    <div class="timer-value" id="current-time">0.0s</div>
+                </div>
+                <div class="timer-box">
+                    <div class="timer-label">📊 Precisão</div>
+                    <div class="timer-value" id="accuracy-percent">100%</div>
+                </div>
+            </div>
+            <div class="precision-bar" id="precision-bar" style="display:none;">
+                <div class="precision-fill" id="precision-fill"></div>
+            </div>
+
             <div style="color: #bbb; font-size: 13px;">Aperte a nota:</div>
             <div class="target-display" id="target-note">Dó</div>
             
@@ -158,29 +190,29 @@
     <script>
         const labels = {'C':'Dó','Cs':'Dó#','D':'Ré','Ds':'Ré#','E':'Mi','F':'Fá','Fs':'Fá#','G':'Sol','Gs':'Sol#','A':'Lá','As':'Lá#','B':'Si','C2':'Dó2'};
         
-        // Banco de dados musical super expandido com notas simplificadas
+        // Banco de dados musical com TEMPOS ideais entre notas (em segundos)
         const tracks = {
-            among: ['C', 'Ds', 'F', 'Fs', 'F', 'Ds', 'C', 'As', 'D'],
-            minecraft: ['D', 'F', 'G', 'A', 'F', 'D'],
-            scooby: ['C', 'D', 'E', 'F', 'G', 'G', 'A', 'G'],
-            beethoven: ['E', 'E', 'F', 'G', 'G', 'F', 'E', 'D'],
-            greenhill: ['C2', 'As', 'G', 'A', 'A', 'A', 'G', 'A'],
-            chemical: ['C', 'D', 'F', 'G', 'Fs', 'F', 'D', 'C'],
-            livelearn: ['E', 'G', 'A', 'B', 'A', 'G', 'E', 'D'],
-            sonicboom: ['C', 'E', 'G', 'C2', 'B', 'A', 'G', 'E'],
-            megalovania: ['D', 'D', 'C2', 'A', 'Gs', 'G', 'F', 'D'],
-            witcher: ['E', 'F', 'E', 'D', 'E', 'C', 'D', 'E'],
-            billiejean: ['Fs', 'Cs', 'E', 'Fs', 'E', 'Cs', 'B', 'Cs'],
-            smooth: ['A', 'A', 'G', 'A', 'B', 'B', 'A', 'B', 'C2'],
-            thriller: ['Cs', 'E', 'Fs', 'Gs', 'Fs', 'E', 'Cs'],
-            wewillrock: ['E', 'E', 'F', 'F', 'E', 'E', 'D'],
-            bohemian: ['G', 'A', 'A', 'A', 'A', 'G', 'G', 'F'],
-            backinblack: ['E', 'D', 'D', 'D', 'C', 'C', 'C', 'B'],
-            baby: ['C', 'D', 'E', 'E', 'E', 'D', 'C', 'D'],
-            sorry: ['G', 'A', 'B', 'B', 'A', 'G', 'A', 'B'],
-            peaches: ['C2', 'B', 'A', 'G', 'F', 'G', 'A', 'C'],
-            shallow: ['G', 'A', 'B', 'B', 'A', 'G', 'F', 'G'],
-            pirates: ['D', 'F', 'G', 'G', 'G', 'A', 'As', 'As']
+            among: {notes: ['C', 'Ds', 'F', 'Fs', 'F', 'Ds', 'C', 'As', 'D'], tempo: 0.5},
+            minecraft: {notes: ['D', 'F', 'G', 'A', 'F', 'D'], tempo: 0.6},
+            scooby: {notes: ['C', 'D', 'E', 'F', 'G', 'G', 'A', 'G'], tempo: 0.4},
+            beethoven: {notes: ['E', 'E', 'F', 'G', 'G', 'F', 'E', 'D'], tempo: 0.8},
+            greenhill: {notes: ['C2', 'As', 'G', 'A', 'A', 'A', 'G', 'A'], tempo: 0.35},
+            chemical: {notes: ['C', 'D', 'F', 'G', 'Fs', 'F', 'D', 'C'], tempo: 0.45},
+            livelearn: {notes: ['E', 'G', 'A', 'B', 'A', 'G', 'E', 'D'], tempo: 0.5},
+            sonicboom: {notes: ['C', 'E', 'G', 'C2', 'B', 'A', 'G', 'E'], tempo: 0.4},
+            megalovania: {notes: ['D', 'D', 'C2', 'A', 'Gs', 'G', 'F', 'D'], tempo: 0.3},
+            witcher: {notes: ['E', 'F', 'E', 'D', 'E', 'C', 'D', 'E'], tempo: 0.6},
+            billiejean: {notes: ['Fs', 'Cs', 'E', 'Fs', 'E', 'Cs', 'B', 'Cs'], tempo: 0.5},
+            smooth: {notes: ['A', 'A', 'G', 'A', 'B', 'B', 'A', 'B', 'C2'], tempo: 0.45},
+            thriller: {notes: ['Cs', 'E', 'Fs', 'Gs', 'Fs', 'E', 'Cs'], tempo: 0.55},
+            wewillrock: {notes: ['E', 'E', 'F', 'F', 'E', 'E', 'D'], tempo: 0.7},
+            bohemian: {notes: ['G', 'A', 'A', 'A', 'A', 'G', 'G', 'F'], tempo: 0.6},
+            backinblack: {notes: ['E', 'D', 'D', 'D', 'C', 'C', 'C', 'B'], tempo: 0.5},
+            baby: {notes: ['C', 'D', 'E', 'E', 'E', 'D', 'C', 'D'], tempo: 0.45},
+            sorry: {notes: ['G', 'A', 'B', 'B', 'A', 'G', 'A', 'B'], tempo: 0.5},
+            peaches: {notes: ['C2', 'B', 'A', 'G', 'F', 'G', 'A', 'C'], tempo: 0.55},
+            shallow: {notes: ['G', 'A', 'B', 'B', 'A', 'G', 'F', 'G'], tempo: 0.6},
+            pirates: {notes: ['D', 'F', 'G', 'G', 'G', 'A', 'As', 'As'], tempo: 0.7}
         };
 
         let activeMode = 'solo'; 
@@ -191,7 +223,9 @@
         
         let localState = 'P1'; 
         let startTime = 0;
+        let lastNoteTime = 0;
         let p1Time = 0, p2Time = 0;
+        let timerInterval = null;
 
         const urlParams = new URLSearchParams(window.location.search);
         const roomID = urlParams.get('room');
@@ -214,6 +248,8 @@
                 document.getElementById('connection-status').style.display = 'none';
                 document.getElementById('p1-score-box').innerHTML = 'Sua Pontuação: <span id="my-score">0</span>';
                 document.getElementById('p2-score-box').style.display = 'none';
+                document.getElementById('timer-section').style.display = 'flex';
+                document.getElementById('precision-bar').style.display = 'block';
                 resetSoloMatch();
             } else if (mode === 'local') {
                 banner.style.display = 'block';
@@ -222,6 +258,8 @@
                 document.getElementById('connection-status').style.display = 'none';
                 document.getElementById('p1-score-box').innerHTML = 'Jogador 1: <span id="my-score">0</span> <span id="p1-time-lbl"></span>';
                 document.getElementById('p2-score-box').style.display = 'block';
+                document.getElementById('timer-section').style.display = 'flex';
+                document.getElementById('precision-bar').style.display = 'block';
                 resetLocalMatch();
             } else {
                 banner.style.display = 'none';
@@ -230,6 +268,8 @@
                 document.getElementById('p1-score-box').innerHTML = 'Você: <span id="my-score">0</span>';
                 document.getElementById('p2-score-box').style.display = 'block';
                 document.getElementById('action-btn').style.display = 'none';
+                document.getElementById('timer-section').style.display = 'flex';
+                document.getElementById('precision-bar').style.display = 'block';
                 initOnlineSystem();
             }
         }
@@ -237,7 +277,8 @@
         function resetSoloMatch() {
             currentIdx = 0; myScore = 0;
             document.getElementById('my-score').textContent = "0";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
+            updateTimerDisplay();
         }
 
         function initOnlineSystem() {
@@ -301,7 +342,8 @@
             currentIdx = 0; myScore = 0; oppScore = 0;
             document.getElementById('my-score').textContent = "0";
             document.getElementById('opp-score').textContent = "0";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
+            updateTimerDisplay();
         }
 
         function resetLocalMatch() {
@@ -313,7 +355,8 @@
             const banner = document.getElementById('turn-banner');
             banner.textContent = "Vez do Jogador 1"; banner.className = "turn-indicator p1-turn";
             document.getElementById('action-btn').style.display = "none";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
+            updateTimerDisplay();
         }
 
         function handleNextStep() {
@@ -322,10 +365,56 @@
                 const banner = document.getElementById('turn-banner');
                 banner.textContent = "Vez do Jogador 2"; banner.className = "turn-indicator p2-turn";
                 document.getElementById('action-btn').style.display = "none";
-                document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
+                document.getElementById('target-note').textContent = labels[tracks[currentTrack].notes[0]];
+                updateTimerDisplay();
             } else if (localState === 'FINISHED') {
                 resetLocalMatch();
             }
+        }
+
+        function updateTimerDisplay() {
+            const idealTime = tracks[currentTrack].tempo.toFixed(2);
+            document.getElementById('ideal-time').textContent = idealTime + 's';
+            document.getElementById('current-time').textContent = '0.0s';
+            document.getElementById('accuracy-percent').textContent = '100%';
+        }
+
+        function updateTimerUI(elapsedTime) {
+            const idealTime = tracks[currentTrack].tempo;
+            const tolerance = idealTime * 0.5; // 50% de tolerância
+            
+            const currentTimeEl = document.getElementById('current-time');
+            const accuracyEl = document.getElementById('accuracy-percent');
+            const fillEl = document.getElementById('precision-fill');
+            
+            currentTimeEl.textContent = elapsedTime.toFixed(2) + 's';
+            
+            // Calcular precisão (100% no tempo ideal, reduz conforme se afasta)
+            let accuracy = 0;
+            if (elapsedTime <= idealTime + tolerance) {
+                accuracy = Math.max(0, 100 - (Math.abs(elapsedTime - idealTime) / tolerance) * 100);
+            }
+            
+            accuracyEl.textContent = Math.round(accuracy) + '%';
+            
+            // Mudar cor do timer baseado na precisão
+            if (accuracy > 80) {
+                currentTimeEl.style.color = '#00ffcc';
+                currentTimeEl.classList.remove('warning', 'critical');
+            } else if (accuracy > 50) {
+                currentTimeEl.style.color = '#ffeb3b';
+                currentTimeEl.classList.add('warning');
+                currentTimeEl.classList.remove('critical');
+            } else {
+                currentTimeEl.style.color = '#ff1744';
+                currentTimeEl.classList.add('critical');
+            }
+            
+            // Atualizar barra de precisão
+            const fillPercentage = Math.min(100, (accuracy / 100) * 100);
+            fillEl.style.width = fillPercentage + '%';
+            
+            return accuracy;
         }
 
         const freqs = {'C':261,'Cs':277,'D':293,'Ds':311,'E':329,'F':349,'Fs':369,'G':392,'Gs':415,'A':440,'As':466,'B':493,'C2':523};
@@ -344,63 +433,94 @@
                 osc.connect(gain); gain.connect(ctx.destination); osc.start(); osc.stop(ctx.currentTime + 0.4);
             }
 
-            let sequence = tracks[currentTrack];
+            const sequence = tracks[currentTrack].notes;
 
-            // 1. Solo
-            if (activeMode === 'solo') {
-                if (note === sequence[currentIdx]) {
-                    myScore += 10;
-                    document.getElementById('my-score').textContent = myScore;
-                    currentIdx++;
-                    if (currentIdx >= sequence.length) {
-                        alert("✨ Incrível! Você completou essa música!");
-                        resetSoloMatch();
-                    } else {
-                        document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
+            // Verificar se é a nota correta
+            if (note === sequence[currentIdx]) {
+                const now = Date.now();
+                
+                if (currentIdx === 0) {
+                    // Primeira nota: inicia o timer
+                    startTime = now;
+                    lastNoteTime = now;
+                } else {
+                    // Calcular tempo desde a última nota
+                    const timeSinceLastNote = (now - lastNoteTime) / 1000;
+                    const accuracy = updateTimerUI(timeSinceLastNote);
+                    
+                    // Calcular penalidade baseada na precisão
+                    let scoreGain = 10;
+                    if (accuracy < 50) {
+                        scoreGain = 5; // 50% de penalidade
+                    } else if (accuracy < 80) {
+                        scoreGain = 8; // 20% de penalidade
+                    }
+                    
+                    lastNoteTime = now;
+                    
+                    // 1. Solo
+                    if (activeMode === 'solo') {
+                        myScore += scoreGain;
+                        document.getElementById('my-score').textContent = myScore;
+                    }
+                    // 2. Online
+                    else if (activeMode === 'online') {
+                        myScore += scoreGain;
+                        document.getElementById('my-score').textContent = myScore;
+                        if (conn) conn.send({ type: 'hit', score: myScore });
+                    }
+                    // 3. Local
+                    else {
+                        if (localState === 'P1') { 
+                            myScore += scoreGain; 
+                            document.getElementById('my-score').textContent = myScore + " pts"; 
+                        }
+                        else { 
+                            oppScore += scoreGain; 
+                            document.getElementById('opp-score').textContent = oppScore + " pts"; 
+                        }
                     }
                 }
-            }
-            // 2. Online
-            else if (activeMode === 'online') {
-                if (note === sequence[currentIdx]) {
-                    myScore += 10; document.getElementById('my-score').textContent = myScore;
-                    if (conn) conn.send({ type: 'hit', score: myScore });
-                    currentIdx++;
-                    if (currentIdx >= sequence.length) { alert("🏆 Você foi mais rápido e ganhou a rodada!"); resetGame(); }
-                    else document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
-                }
-            } 
-            // 3. Local
-            else {
-                if (startTime === 0) startTime = performance.now();
-                if (note === sequence[currentIdx]) {
-                    currentIdx++;
-                    if (localState === 'P1') { myScore += 10; document.getElementById('my-score').textContent = myScore + " pts"; }
-                    else { oppScore += 10; document.getElementById('opp-score').textContent = oppScore + " pts"; }
-
-                    if (currentIdx >= sequence.length) {
-                        let duration = ((performance.now() - startTime) / 1000).toFixed(2);
+                
+                currentIdx++;
+                
+                // Verifica se a música acabou
+                if (currentIdx >= sequence.length) {
+                    let totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
+                    
+                    if (activeMode === 'solo') {
+                        alert("✨ Incrível! Você completou essa música em " + totalTime + "s!");
+                        resetSoloMatch();
+                    } else if (activeMode === 'online') {
+                        alert("🏆 Você completou a sequência em " + totalTime + "s!");
+                        resetGame();
+                    } else if (activeMode === 'local') {
                         if (localState === 'P1') {
-                            p1Time = parseFloat(duration); document.getElementById('p1-time-lbl').textContent = `(${duration}s)`;
+                            p1Time = parseFloat(totalTime); 
+                            document.getElementById('p1-time-lbl').textContent = `(${totalTime}s)`;
                             localState = 'WAITING_P2';
                             const banner = document.getElementById('turn-banner');
-                            banner.textContent = "⏱️ Passa o Celular!"; banner.className = "turn-indicator waiting-turn";
+                            banner.textContent = "⏱️ Passa o Celular!"; 
+                            banner.className = "turn-indicator waiting-turn";
                             const actBtn = document.getElementById('action-btn');
-                            actBtn.textContent = "Começar Vez do Jogador 2 ➜"; actBtn.style.display = "block";
+                            actBtn.textContent = "Começar Vez do Jogador 2 ➜"; 
+                            actBtn.style.display = "block";
                         } else {
-                            p2Time = parseFloat(duration); document.getElementById('p2-time-lbl').textContent = `(${duration}s)`;
+                            p2Time = parseFloat(totalTime); 
+                            document.getElementById('p2-time-lbl').textContent = `(${totalTime}s)`;
                             localState = 'FINISHED';
                             const banner = document.getElementById('turn-banner');
                             banner.className = "turn-indicator waiting-turn";
-                            let winTxt = p1Time < p2Time ? "👑 JOGADOR 1 VENCEU!" : "👑 JOGADOR 2 VENCEU!";
-                            if(p1Time === p2Time) winTxt = "🤝 EMPATE!";
+                            let winTxt = myScore > oppScore ? "👑 JOGADOR 1 VENCEU!" : "👑 JOGADOR 2 VENCEU!";
+                            if(myScore === oppScore) winTxt = "🤝 EMPATE PERFEITO!";
                             banner.textContent = winTxt;
                             const actBtn = document.getElementById('action-btn');
-                            actBtn.textContent = "🔄 Nova Partida"; actBtn.style.display = "block";
+                            actBtn.textContent = "🔄 Nova Partida"; 
+                            actBtn.style.display = "block";
                         }
-                    } else {
-                        document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
                     }
+                } else {
+                    document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
                 }
             }
         }
@@ -408,7 +528,7 @@
         // ===== DETECÇÃO AVANÇADA DE FREQUÊNCIA COM FILTROS =====
         let micStream, audioContext, analyser, isListening = false;
         let lastValidNoteTime = 0;
-        const NOTE_DEBOUNCE_MS = 300; // Evitar múltiplos triggers da mesma nota
+        const NOTE_DEBOUNCE_MS = 300;
 
         function toggleMobileMic() {
             const btn = document.getElementById('mic-btn');
@@ -432,20 +552,19 @@
                 
                 audioContext = new (window.AudioContext || window.webkitAudioContext)(); 
                 analyser = audioContext.createAnalyser(); 
-                analyser.fftSize = 4096; // Melhor resolução de frequência
+                analyser.fftSize = 4096;
                 analyser.minDecibels = -100;
                 analyser.maxDecibels = -10;
                 analyser.smoothingTimeConstant = 0.85;
                 
-                // Criar filtros para melhorar detecção
                 const sourceNode = audioContext.createMediaStreamSource(stream);
                 const highPassFilter = audioContext.createBiquadFilter();
                 highPassFilter.type = 'highpass';
-                highPassFilter.frequency.value = 200; // Rejeita baixas frequências (vozes)
+                highPassFilter.frequency.value = 200;
                 
                 const lowPassFilter = audioContext.createBiquadFilter();
                 lowPassFilter.type = 'lowpass';
-                lowPassFilter.frequency.value = 2000; // Foco nas frequências do piano
+                lowPassFilter.frequency.value = 2000;
                 lowPassFilter.Q.value = 2;
                 
                 sourceNode.connect(highPassFilter);
@@ -462,23 +581,19 @@
             let buf = new Float32Array(analyser.fftSize); 
             analyser.getFloatTimeDomainData(buf);
             
-            // Calcular RMS (Root Mean Square) para detectar som
             let sum = 0; 
             for(let i = 0; i < buf.length; i++) sum += buf[i] * buf[i];
             const rms = Math.sqrt(sum / buf.length);
             
-            // Limiar adaptativo: aceita sons mais altos (piano) e rejeita ruído/vozes fracas
-            if (rms > 0.08) { // Aumentado de 0.04 para ser mais seletivo
+            if (rms > 0.08) {
                 let bestFreq = frequencyAnalytic(buf, audioContext.sampleRate);
                 
-                if (bestFreq > 0 && bestFreq > 200 && bestFreq < 2000) { // Piano: 200-2000 Hz
+                if (bestFreq > 0 && bestFreq > 200 && bestFreq < 2000) {
                     let matched = matchFreq(bestFreq);
                     
-                    // Mostrar frequência detectada
                     document.getElementById('freq-display').textContent = bestFreq.toFixed(1);
                     document.getElementById('note-detected').textContent = matched ? labels[matched] : 'Indefinido';
                     
-                    // Debounce: evitar detecções muito frequentes
                     const now = Date.now();
                     if (matched && (now - lastValidNoteTime) > NOTE_DEBOUNCE_MS) {
                         handleKeyTrigger(matched, true);
@@ -494,7 +609,6 @@
         }
 
         function frequencyAnalytic(buf, sampleRate) {
-            // Usando autocorrelação para melhor precisão
             let maxCorr = -1, bestPeriod = -1;
             
             for (let period = Math.floor(sampleRate / 2000); period < Math.floor(sampleRate / 200); period++) {
@@ -514,12 +628,9 @@
         function matchFreq(f) {
             let matchedKey = null, diff = Infinity;
             
-            // Aumentar tolerância mas manter precisão
             for (let k in freqs) { 
-                // Verificar frequência fundamental e harmônicos
                 [freqs[k], freqs[k]*2, freqs[k]/2].forEach(target => { 
                     let d = Math.abs(target - f);
-                    // Tolerância maior para melhor captura
                     if (d < diff && d < 25) { 
                         diff = d; 
                         matchedKey = k; 
