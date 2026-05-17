@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Ultimate Music Piano Arcade</title>
     <!-- Biblioteca WebRTC para conectar celulares direto sem precisar de computador -->
-    <script src="https://unpkg.com"></script>
+    <script src="https://unpkg.com/peerjs@latest/dist/peerjs.min.js"></script>
     <style>
         * { box-sizing: border-box; touch-action: manipulation; }
         body { font-family: 'Segoe UI', sans-serif; background-color: #0b0b0f; color: #fff; margin: 0; padding: 10px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
@@ -228,7 +228,7 @@
         function resetSoloMatch() {
             currentIdx = 0; myScore = 0;
             document.getElementById('my-score').textContent = "0";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
         }
 
         function initOnlineSystem() {
@@ -254,7 +254,7 @@
         function shareMatchLink() {
             const matchLink = window.location.origin + window.location.pathname + '?room=' + peer.id;
             const text = encodeURIComponent("Entre na minha arena de piano agora! Link: " + matchLink);
-            window.open("https://whatsapp.com" + text, '_blank');
+            window.open("https://wa.me/?text=" + text, '_blank');
         }
 
         function setupConnection() {
@@ -292,7 +292,7 @@
             currentIdx = 0; myScore = 0; oppScore = 0;
             document.getElementById('my-score').textContent = "0";
             document.getElementById('opp-score').textContent = "0";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
         }
 
         function resetLocalMatch() {
@@ -304,7 +304,7 @@
             const banner = document.getElementById('turn-banner');
             banner.textContent = "Vez do Jogador 1"; banner.className = "turn-indicator p1-turn";
             document.getElementById('action-btn').style.display = "none";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
         }
 
         function handleNextStep() {
@@ -313,7 +313,7 @@
                 const banner = document.getElementById('turn-banner');
                 banner.textContent = "Vez do Jogador 2"; banner.className = "turn-indicator p2-turn";
                 document.getElementById('action-btn').style.display = "none";
-                document.getElementById('target-note').textContent = labels[tracks[currentTrack]];
+                document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
             } else if (localState === 'FINISHED') {
                 resetLocalMatch();
             }
@@ -403,7 +403,7 @@
             if (isListening) { isListening = false; btn.textContent = "🎙️ Ouvir meu Piano Real"; btn.classList.remove('active'); if (micStream) micStream.getTracks().forEach(t => t.stop()); return; }
             navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
                 isListening = true; micStream = stream; btn.textContent = "🛑 Desativar Captura"; btn.classList.add('active');
-                audioContext = new AudioContext(); analyser = audioContext.createAnalyser(); analyser.fftSize = 1024;
+                audioContext = new (window.AudioContext || window.webkitAudioContext)(); analyser = audioContext.createAnalyser(); analyser.fftSize = 1024;
                 audioContext.createMediaStreamSource(stream).connect(analyser); listenLoop();
             }).catch(() => alert("Ative o microfone nas configurações."));
         }
@@ -432,323 +432,6 @@
         }
 
         if(roomID) { switchMode('online'); } else { switchMode('solo'); }
-    </script>
-</body>
-</html>
-        .piano { display: flex; position: relative; width: max-content; margin: 0 auto; }
-        .key { height: 145px; cursor: pointer; position: relative; }
-        .white { width: 44px; background: #fff; border: 1px solid #aaa; border-radius: 0 0 6px 6px; z-index: 1; }
-        .white:active, .white.hit { background: #b2dfdb; }
-        .black { width: 28px; height: 88px; background: #111; margin-left: -14px; margin-right: -14px; z-index: 2; border-radius: 0 0 4px 4px; }
-        .black:active, .black.hit { background: #00796b; }
-        
-        .label { position: absolute; bottom: 8px; left: 50%; transform: translateX(-50%); font-size: 10px; font-weight: bold; color: #333; pointer-events: none; }
-        .black .label { color: #fff; top: 62px; }
-
-        .btn-action { background: #4caf50; color: white; border: none; padding: 12px; font-size: 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 5px; display: none; }
-        .btn-mic { background: #00bcd4; color: white; border: none; padding: 10px; border-radius: 8px; width: 100%; margin-top: 8px; font-weight: bold; }
-        .btn-mic.active { background: #f44336; }
-    </style>
-</head>
-<body>
-
-    <h1>🏠 Batalha de Piano: Mesma Casa</h1>
-    
-    <div class="container">
-        <div class="panel">
-            <!-- Seletor de Músicas -->
-            <select id="track-picker" class="track-select" onchange="changeTrack()">
-                <option value="among">🛸 Among Us Theme</option>
-                <option value="minecraft">⛏️ Minecraft Main</option>
-                <option value="scooby">🐕 Scooby-Doo Intro</option>
-                <option value="beethoven">🎼 Beethoven (Nona Sinfonia)</option>
-            </select>
-
-            <!-- Painel de Turnos Dinâmico -->
-            <div id="turn-banner" class="turn-indicator p1-turn">Vez do Jogador 1</div>
-            
-            <div id="game-instructions" style="font-size: 13px; color: #aaa; min-height: 35px;">Toque as notas da música o mais rápido que puder!</div>
-
-            <!-- Placar de Comparação -->
-            <div class="score-box">
-                <div class="p1-txt">JOGADOR 1:<br><span id="p1-score">0 pts</span> (<span id="p1-time">-</span>s)</div>
-                <div class="p2-txt">JOGADOR 2:<br><span id="p2-score">0 pts</span> (<span id="p2-time">-</span>s)</div>
-            </div>
-
-            <!-- Botão de Ação para Passar o Turno / Reiniciar -->
-            <button id="action-btn" class="btn-action" onclick="handleNextStep()">Começar Vez do Jogador 2 ➜</button>
-
-            <div class="target-area">
-                <div style="color: #aaa; font-size: 12px; text-transform: uppercase;">Aperte a nota:</div>
-                <div class="target-display" id="target-note">Dó</div>
-            </div>
-
-            <button class="btn-mic" id="mic-btn" onclick="toggleMobileMic()">🎙️ Usar Microfone (Ouvir Piano Real)</button>
-        </div>
-
-        <!-- Teclado com Scroll Lateral se o Celular for pequeno -->
-        <div class="piano-wrapper">
-            <div class="piano">
-                <div class="key white" id="C" onclick="handleKeyTrigger('C')"><span class="label">Dó</span></div>
-                <div class="key black" id="Cs" onclick="handleKeyTrigger('Cs')"><span class="label">Dó#</span></div>
-                <div class="key white" id="D" onclick="handleKeyTrigger('D')"><span class="label">Ré</span></div>
-                <div class="key black" id="Ds" onclick="handleKeyTrigger('Ds')"><span class="label">Ré#</span></div>
-                <div class="key white" id="E" onclick="handleKeyTrigger('E')"><span class="label">Mi</span></div>
-                <div class="key white" id="F" onclick="handleKeyTrigger('F')"><span class="label">Fá</span></div>
-                <div class="key black" id="Fs" onclick="handleKeyTrigger('Fs')"><span class="label">Fá#</span></div>
-                <div class="key white" id="G" onclick="handleKeyTrigger('G')"><span class="label">Sol</span></div>
-                <div class="key black" id="Gs" onclick="handleKeyTrigger('Gs')"><span class="label">Sol#</span></div>
-                <div class="key white" id="A" onclick="handleKeyTrigger('A')"><span class="label">Lá</span></div>
-                <div class="key black" id="As" onclick="handleKeyTrigger('As')"><span class="label">Lá#</span></div>
-                <div class="key white" id="B" onclick="handleKeyTrigger('B')"><span class="label">Si</span></div>
-                <div class="key white" id="C2" onclick="handleKeyTrigger('C2')"><span class="label">Dó2</span></div>
-            </div>
-        </div>
-    </div>
-
-    <script>
-        const labels = {'C':'Dó','Cs':'Dó#','D':'Ré','Ds':'Ré#','E':'Mi','F':'Fá','Fs':'Fá#','G':'Sol','Gs':'Sol#','A':'Lá','As':'Lá#','B':'Si','C2':'Dó2'};
-        const tracks = {
-            among: ['C', 'Ds', 'F', 'Fs', 'F', 'Ds', 'C', 'As', 'D'],
-            minecraft: ['D', 'F', 'G', 'A', 'F', 'D'],
-            scooby: ['C', 'D', 'E', 'F', 'G', 'G', 'A', 'G'],
-            beethoven: ['E', 'E', 'F', 'G', 'G', 'F', 'E', 'D']
-        };
-
-        let currentTrack = 'among';
-        let currentIdx = 0;
-        
-        // Estados do Jogo: 'P1', 'WAITING_P2', 'P2', 'FINISHED'
-        let gameState = 'P1'; 
-        let startTime = 0;
-
-        // Dados de performance dos jogadores
-        let p1Data = { score: 0, time: 0 };
-        let p2Data = { score: 0, time: 0 };
-
-        function startTurnTimer() {
-            startTime = performance.now();
-        }
-
-        function endTurnTimer() {
-            let duration = (performance.now() - startTime) / 1000;
-            return duration.toFixed(2);
-        }
-
-        function changeTrack() {
-            currentTrack = document.getElementById('track-picker').value;
-            resetFullMatch();
-        }
-
-        function resetFullMatch() {
-            gameState = 'P1';
-            currentIdx = 0;
-            p1Data = { score: 0, time: 0 };
-            p2Data = { score: 0, time: 0 };
-            
-            document.getElementById('p1-score').textContent = "0 pts";
-            document.getElementById('p1-time').textContent = "-";
-            document.getElementById('p2-score').textContent = "0 pts";
-            document.getElementById('p2-time').textContent = "-";
-            
-            const banner = document.getElementById('turn-banner');
-            banner.textContent = "Vez do Jogador 1";
-            banner.className = "turn-indicator p1-turn";
-            
-            document.getElementById('game-instructions').textContent = "Jogador 1: Toque a primeira nota para iniciar o cronômetro!";
-            document.getElementById('action-btn').style.display = "none";
-            document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
-            startTime = 0;
-        }
-
-        function handleNextStep() {
-            if (gameState === 'WAITING_P2') {
-                // Inicia o turno do Jogador 2
-                gameState = 'P2';
-                currentIdx = 0;
-                startTime = 0;
-                
-                const banner = document.getElementById('turn-banner');
-                banner.textContent = "Vez do Jogador 2";
-                banner.className = "turn-indicator p2-turn";
-                
-                document.getElementById('game-instructions').textContent = "Jogador 2: Toque para começar!";
-                document.getElementById('action-btn').style.display = "none";
-                document.getElementById('target-note').textContent = labels[tracks[currentTrack][0]];
-            } else if (gameState === 'FINISHED') {
-                // Reinicia uma nova partida
-                resetFullMatch();
-            }
-        }
-
-        // TÓPICO PRINCIPAL: CONTROLE DO INSTRUMENTO E ENCAIXE DAS REGRAS
-        const freqs = {'C':261,'Cs':277,'D':293,'Ds':311,'E':329,'F':349,'Fs':369,'G':392,'Gs':415,'A':440,'As':466,'B':493,'C2':523};
-        
-        function handleKeyTrigger(note, silent = false) {
-            // Bloqueia interações se o jogo estiver esperando ação de botão
-            if (gameState === 'WAITING_P2' || gameState === 'FINISHED') return;
-
-            const el = document.getElementById(note);
-            if (el) {
-                el.classList.add('hit');
-                setTimeout(() => el.classList.remove('hit'), 150);
-            }
-
-            if (!silent) {
-                const ctx = new (window.AudioContext || window.webkitAudioContext)();
-                const osc = ctx.createOscillator();
-                const gain = ctx.createGain();
-                osc.frequency.setValueAtTime(freqs[note], ctx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.4);
-                osc.connect(gain); gain.connect(ctx.destination);
-                osc.start(); osc.stop(ctx.currentTime + 0.4);
-            }
-
-            // Ativa o cronômetro no primeiro toque válido do turno
-            if (startTime === 0) {
-                startTurnTimer();
-                document.getElementById('game-instructions').textContent = "O tempo está correndo! Vá, vá, vá!";
-            }
-
-            let sequence = tracks[currentTrack];
-            
-            // Validação da mecânica de acertos
-            if (note === sequence[currentIdx]) {
-                currentIdx++;
-                
-                if (gameState === 'P1') {
-                    p1Data.score += 10;
-                    document.getElementById('p1-score').textContent = p1Data.score + " pts";
-                } else if (gameState === 'P2') {
-                    p2Data.score += 10;
-                    document.getElementById('p2-score').textContent = p2Data.score + " pts";
-                }
-
-                // Verifica se a música acabou para o jogador atual
-                if (currentIdx >= sequence.length) {
-                    let totalTime = endTurnTimer();
-                    
-                    if (gameState === 'P1') {
-                        p1Data.time = totalTime;
-                        document.getElementById('p1-time').textContent = totalTime;
-                        
-                        // Transiciona para a espera do Jogador 2
-                        gameState = 'WAITING_P2';
-                        const banner = document.getElementById('turn-banner');
-                        banner.textContent = "⏱️ Passa o Celular!";
-                        banner.className = "turn-indicator waiting-turn";
-                        
-                        document.getElementById('game-instructions').textContent = "Jogador 1 terminou! Entregue o celular para o seu amigo.";
-                        document.getElementById('target-note').textContent = "---";
-                        
-                        const actBtn = document.getElementById('action-btn');
-                        actBtn.textContent = "Começar Vez do Jogador 2 ➜";
-                        actBtn.style.display = "block";
-                    } else if (gameState === 'P2') {
-                        p2Data.time = totalTime;
-                        document.getElementById('p2-time').textContent = totalTime;
-                        
-                        // Finaliza e calcula vencedor
-                        gameState = 'FINISHED';
-                        determineWinner();
-                    }
-                } else {
-                    document.getElementById('target-note').textContent = labels[sequence[currentIdx]];
-                }
-            }
-        }
-
-        function determineWinner() {
-            const banner = document.getElementById('turn-banner');
-            banner.className = "turn-indicator waiting-turn";
-            
-            let resultTxt = "";
-            // Critério: Quem fez menos tempo (mais rápido) ganha
-            let t1 = parseFloat(p1Data.time);
-            let t2 = parseFloat(p2Data.time);
-
-            if (t1 < t2) {
-                resultTxt = "👑 JOGADOR 1 VENCEU! Foi mais rápido por " + (t2 - t1).toFixed(2) + "s!";
-            } else if (t2 < t1) {
-                resultTxt = "👑 JOGADOR 2 VENCEU! Foi mais rápido por " + (t1 - t2).toFixed(2) + "s!";
-            } else {
-                resultTxt = "🤝 EMPATE INCRÍVEL! Mesmíssimo tempo!";
-            }
-
-            document.getElementById('game-instructions').innerHTML = `<strong>${resultTxt}</strong>`;
-            document.getElementById('target-note').textContent = "🏆";
-            
-            const actBtn = document.getElementById('action-btn');
-            actBtn.textContent = "🔄 Jogar Novamente";
-            actBtn.style.display = "block";
-        }
-
-        // 🎙️ SUPORTE A MICROFONE (Para captar instrumentos reais na mesma sala)
-        let micStream, audioContext, analyser, isListening = false;
-
-        function toggleMobileMic() {
-            const btn = document.getElementById('mic-btn');
-            if (isListening) {
-                isListening = false;
-                btn.textContent = "🎙️ Usar Microfone (Ouvir Piano Real)";
-                btn.classList.remove('active');
-                if (micStream) micStream.getTracks().forEach(t => t.stop());
-                return;
-            }
-
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                isListening = true;
-                micStream = stream;
-                btn.textContent = "🛑 Desativar Microfone";
-                btn.classList.add('active');
-
-                audioContext = new (window.AudioContext || window.webkitAudioContext)();
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 1024;
-                audioContext.createMediaStreamSource(stream).connect(analyser);
-                listenLoop();
-            }).catch(() => alert("Por favor, ative a permissão do microfone para o jogo escutar seu piano físico."));
-        }
-
-        function listenLoop() {
-            if (!isListening) return;
-            let buf = new Float32Array(analyser.fftSize);
-            analyser.getFloatTimeDomainData(buf);
-            
-            let sum = 0; for(let i=0; i<buf.length; i++) sum += buf[i]*buf[i];
-            if (Math.sqrt(sum/buf.length) > 0.04) {
-                let bestFreq = frequencyAnalytic(buf, audioContext.sampleRate);
-                if (bestFreq > 0) {
-                    let matched = matchFreq(bestFreq);
-                    if (matched) handleKeyTrigger(matched, true); // Valida silenciando o sintetizador
-                }
-            }
-            setTimeout(() => requestAnimationFrame(listenLoop), 60);
-        }
-
-        function frequencyAnalytic(buf, sampleRate) {
-            let maxCorr = -1, bestPeriod = -1;
-            for (let period = 20; period < 200; period++) {
-                let corr = 0;
-                for (let i = 0; i < buf.length - period; i++) corr += buf[i] * buf[i + period];
-                if (corr > maxCorr) { maxCorr = corr; bestPeriod = period; }
-            }
-            return bestPeriod > 0 ? sampleRate / bestPeriod : -1;
-        }
-
-        function matchFreq(f) {
-            let matchedKey = null, diff = Infinity;
-            for (let k in freqs) {
-                [freqs[k], freqs[k]*2, freqs[k]/2].forEach(target => {
-                    let d = Math.abs(target - f);
-                    if (d < diff && d < 15) { diff = d; matchedKey = k; }
-                });
-            }
-            return matchedKey;
-        }
-
-        // Configuração inicial
-        resetFullMatch();
     </script>
 </body>
 </html>
